@@ -11,7 +11,21 @@ import matplotlib.path as path
 import matplotlib.animation as animation
 
 
+plt.style.use('seaborn')
+
+
 TITLE_TEMPLATE = '{n}\n{pct:0.2f}\n{pred}\n{max}'
+
+
+def plot_dist(dist, discrete, ax=None):
+    start, stop = dist.interval(0.99999)
+    if discrete:
+        x = range(int(start), int(stop)+1)
+        p = dist.pmf(x)
+    else:
+        x = np.linspace(start, stop)
+        p = dist.pdf(x)
+    ax.plot(x, p, color='b')
 
 
 class Distribution:
@@ -20,31 +34,21 @@ class Distribution:
         self.discrete = discrete
     
     def update(self, dist):
-        x, p = self._get_plot_points(dist)
-        self.ax.plot(x, p, color='b')
+        plot_dist(dist, self.discrete, self.ax)
         
     def clear(self):
         for line in self.ax.get_lines():
-            line.remove()   
-
-    def _get_plot_points(self, dist):
-        start, stop = dist.interval(0.99)
-        if self.discrete:
-            x = range(int(start), int(stop)+1)
-            p = dist.pmf(x)
-        else:
-            x = np.linspace(start, stop)
-            p = dist.pdf(x)
-        return x, p
+            line.remove()
 
 
 class Histogram:
-    def __init__(self, ax, arr):
+    def __init__(self, ax, arr, bins=40):
         self.ax = ax
+        self.bins = bins
         self.init_hist(self.ax, arr)
 
     def init_hist(self, ax, arr):
-        n, bins = np.histogram(arr, 40)
+        n, bins = np.histogram(arr, self.bins)
 
         # get the corners of the rectangles for the histogram
         left = np.array(bins[:-1])
@@ -86,7 +90,7 @@ class Histogram:
         self.patch = patch
 
     def update(self, arr):
-        n, bins = np.histogram(arr, 40)
+        n, bins = np.histogram(arr, self.bins)
         top = self.bottom + n
         self.verts[1::5, 1] = top
         self.verts[2::5, 1] = top
@@ -96,12 +100,12 @@ class Histogram:
             line.remove()     
         
     def plot_line(self, x, color, label):
-        self.ax.axvline(x, color=color, label=label)
+        self.ax.axvline(x, color=color, label=label, alpha=0.5)
 
-def visualize_learning(observations, predictions, cum_max=None):
+def visualize_learning(observations, predictions, bins, cum_max=None):
     fig, ax = plt.subplots()
 
-    obs_hist = Histogram(ax, observations)
+    obs_hist = Histogram(ax, observations, bins=bins)
 
     def animate(i):
         obs_hist.update(observations[:i])
@@ -117,7 +121,7 @@ def visualize_learning(observations, predictions, cum_max=None):
     return ani
         
 def visualize_online_learning(observations, predictions, model_params, true_dists,
-                              confidence, last_n=None):
+                              confidence, bins, last_n=None):
     plt.style.use('seaborn')
     fig = plt.figure(figsize=(10, 6))
     ax_obs = plt.subplot2grid((3, 6), (0, 0), rowspan=3, colspan=4)
@@ -127,7 +131,7 @@ def visualize_online_learning(observations, predictions, model_params, true_dist
     
     ax_obs.set_title('observations')
     ax_true.set_title('generating distribution')
-    ax_poi.set_title('lambda posterior')
+    ax_poi.set_title('poisson posterior')
     ax_gamma.set_title('gamma posterior')
 
     true_dist = Distribution(ax_true, discrete=True)
@@ -138,7 +142,7 @@ def visualize_online_learning(observations, predictions, model_params, true_dist
 
     if last_n is None:
         last_n = len(observations)
-    obs_hist = Histogram(ax_obs, observations[:3*last_n])
+    obs_hist = Histogram(ax_obs, observations[:3*last_n], bins=bins)
 
     def animate(i):
         start = 0 if i < last_n else i - last_n
