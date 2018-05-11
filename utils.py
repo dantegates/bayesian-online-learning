@@ -14,10 +14,15 @@ import matplotlib.animation as animation
 plt.style.use('seaborn')
 
 
-TITLE_TEMPLATE = '{n}\n{pct:0.2f}\n{pred}\n{max}'
+TITLE_TEMPLATE = '\n'.join([
+    'iter: {iter}'
+    'true params: {true_lam}'
+    'posterior poisson params: {ppp}'
+    'posterior gamma params: {pgp}'
+])
 
 
-def plot_dist(dist, discrete, ax=None):
+def plot_pdf(dist, discrete, ax=None):
     start, stop = dist.interval(0.99999)
     if discrete:
         x = range(int(start), int(stop)+1)
@@ -25,7 +30,7 @@ def plot_dist(dist, discrete, ax=None):
     else:
         x = np.linspace(start, stop)
         p = dist.pdf(x)
-    ax.plot(x, p, color='b')
+    ax.plot(x, p, color='b', alpha=0.5)
 
 
 class Distribution:
@@ -34,7 +39,7 @@ class Distribution:
         self.discrete = discrete
     
     def update(self, dist):
-        plot_dist(dist, self.discrete, self.ax)
+        plot_pdf(dist, self.discrete, self.ax)
         
     def clear(self):
         for line in self.ax.get_lines():
@@ -81,7 +86,7 @@ class Histogram:
         patch = patches.PathPatch(barpath, alpha=0.5)
         ax.add_patch(patch)
 
-        ax.set_xlim(left[0], right[-1])
+        ax.set_xlim(left[0]-5, right[-1]+5)
         ax.set_ylim(bottom.min(), top.max())
         
         self.verts = verts
@@ -142,7 +147,7 @@ def visualize_online_learning(observations, predictions, model_params, true_dist
 
     if last_n is None:
         last_n = len(observations)
-    obs_hist = Histogram(ax_obs, observations[:3*last_n], bins=bins)
+    obs_hist = Histogram(ax_obs, observations[:int(1.5*last_n)], bins=bins)
 
     def animate(i):
         start = 0 if i < last_n else i - last_n
@@ -163,12 +168,12 @@ def visualize_online_learning(observations, predictions, model_params, true_dist
         obs_hist.plot_line(pred, color='r', label='true')
         obs_hist.plot_line(true_max_with_confidence, color='b', label='prediction')
 
-        title = TITLE_TEMPLATE.format(
-            n=(i+1),
-            pct=((obs < pred).sum() / len(obs)),
-            pred=pred,
-            max=max(obs))
-        plt.title(title, x=1.1, y=0.6)
+        ax_obs.set_title('observations: %s' % (i+1))
+        ax_true.set_title('generating distribution: %0.2f' % true.args[0])
+        ax_poi.set_title('poisson posterior: %0.2f' % poisson.args[0])
+        ax_gamma.set_title('gamma posterior: %0.2f, %0.2f' % (gamma.args[0], gamma.kwds['scale']))
+
+        plt.tight_layout()
         return [obs_hist.patch, ]
 
     ani = animation.FuncAnimation(fig, animate, len(observations),
